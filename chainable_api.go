@@ -2,7 +2,6 @@ package gorm
 
 import (
 	"fmt"
-	"regexp"
 	"strings"
 
 	"gorm.io/gorm/clause"
@@ -55,22 +54,92 @@ func (db *DB) Clauses(conds ...clause.Expression) (tx *DB) {
 	return
 }
 
-var tableRegexp = regexp.MustCompile(`(?i)(?:.+? AS (\w+)\s*(?:$|,)|^\w+\s+(\w+)$)`)
+// parseTableAlias 解析表名中的别名，替代正则表达式处理
+// 支持两种格式:
+// 1. "table_name AS alias_name" 格式
+// 2. "table_name alias_name" 格式（不含AS关键字）
+func parseTableAlias(name string) string {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return ""
+	}
 
-// extractTableAlias 提取表名表达式中的别名
-// 该函数封装了正则表达式的处理逻辑，用于从SQL表名表达式中提取表的别名
-// 支持两种格式：
-// 1. "table AS alias" 形式
-// 2. "table alias" 形式
-func extractTableAlias(name string) string {
-	if results := tableRegexp.FindStringSubmatch(name); len(results) == 3 {
-		if results[1] != "" {
-			return results[1]
-		} else {
-			return results[2]
+	// 将字符串转为小写进行比较，但保留原始大小写的结果
+	lowerName := strings.ToLower(name)
+
+	// 情况1: 处理 "table AS alias" 格式
+	if asIndex := strings.Index(lowerName, " as "); asIndex != -1 {
+		// 找到 AS 关键字后的部分
+		afterAS := strings.TrimSpace(name[asIndex+4:])
+		if afterAS != "" {
+			// 如果有逗号，只取逗号前的部分作为别名
+			if commaIndex := strings.Index(afterAS, ","); commaIndex != -1 {
+				alias := strings.TrimSpace(afterAS[:commaIndex])
+				if isValidAlias(alias) {
+					return alias
+				}
+			} else {
+				// 没有逗号，取整个部分作为别名
+				if isValidAlias(afterAS) {
+					return afterAS
+				}
+			}
 		}
 	}
+
+	// 情况2: 处理 "table alias" 格式（没有AS关键字）
+	// 只处理两个单词的简单情况，避免误判复杂SQL
+	parts := strings.Fields(name)
+	if len(parts) == 2 {
+		// 确保第一部分看起来像表名，第二部分看起来像别名
+		if isValidTableName(parts[0]) && isValidAlias(parts[1]) {
+			return parts[1]
+		}
+	}
+
 	return ""
+}
+
+// isValidAlias 检查字符串是否是有效的别名
+// 别名应该只包含字母、数字和下划线，且以字母或下划线开头
+func isValidAlias(s string) bool {
+	if s == "" {
+		return false
+	}
+
+	// 检查第一个字符
+	if !((s[0] >= 'a' && s[0] <= 'z') || (s[0] >= 'A' && s[0] <= 'Z') || s[0] == '_') {
+		return false
+	}
+
+	// 检查其余字符
+	for i := 1; i < len(s); i++ {
+		c := s[i]
+		if !((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_') {
+			return false
+		}
+	}
+
+	return true
+}
+
+// isValidTableName 检查字符串是否看起来像有效的表名
+func isValidTableName(s string) bool {
+	if s == "" {
+		return false
+	}
+
+	// 简单检查：不包含特殊SQL关键字和操作符
+	lowerS := strings.ToLower(s)
+	sqlKeywords := []string{"select", "from", "where", "join", "inner", "left", "right", "on", "and", "or"}
+
+	for _, keyword := range sqlKeywords {
+		if lowerS == keyword {
+			return false
+		}
+	}
+
+	return true
 }
 
 // Table specify the table you would like to run db operations
@@ -81,7 +150,9 @@ func (db *DB) Table(name string, args ...interface{}) (tx *DB) {
 	tx = db.getInstance()
 	if strings.Contains(name, " ") || strings.Contains(name, "`") || len(args) > 0 {
 		tx.Statement.TableExpr = &clause.Expr{SQL: name, Vars: args}
-		if alias := extractTableAlias(name); alias != "" {
+
+		// 使用新的函数替代正则表达式解析别名
+		if alias := parseTableAlias(name); alias != "" {
 			tx.Statement.Table = alias
 		}
 	} else if tables := strings.Split(name, "."); len(tables) == 2 {
