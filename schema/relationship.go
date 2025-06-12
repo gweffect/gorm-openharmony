@@ -3,11 +3,11 @@ package schema
 import (
 	"context"
 	"fmt"
+	"gorm.io/gorm/utils"
 	"reflect"
 	"strings"
 	"sync"
 
-	"github.com/jinzhu/inflection"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 
@@ -329,7 +329,7 @@ func (schema *Schema) buildMany2ManyRelation(relation *Relationship, field *Fiel
 
 		if _, ok := ownFieldsMap[joinFieldName]; ok {
 			if field.Name != relation.FieldSchema.Name {
-				joinFieldName = inflection.Singular(field.Name) + relField.Name
+				joinFieldName = utils.Singular(field.Name) + relField.Name
 			} else {
 				joinFieldName += "Reference"
 			}

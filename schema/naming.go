@@ -3,11 +3,11 @@ package schema
 import (
 	"crypto/sha1"
 	"encoding/hex"
+	"gorm.io/gorm/utils"
 	"regexp"
 	"strings"
 	"unicode/utf8"
 
-	"github.com/jinzhu/inflection"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 )
@@ -45,7 +45,7 @@ func (ns NamingStrategy) TableName(str string) string {
 	if ns.SingularTable {
 		return ns.TablePrefix + ns.toDBName(str)
 	}
-	return ns.TablePrefix + inflection.Plural(ns.toDBName(str))
+	return ns.TablePrefix + utils.Plural(ns.toDBName(str))
 }
 
 // SchemaName generate schema name from table name, don't guarantee it is the reverse value of TableName
@@ -55,7 +55,7 @@ func (ns NamingStrategy) SchemaName(table string) string {
 	if ns.SingularTable {
 		return ns.toSchemaName(table)
 	}
-	return ns.toSchemaName(inflection.Singular(table))
+	return ns.toSchemaName(utils.Singular(table))
 }
 
 // ColumnName convert string to column name
@@ -72,7 +72,7 @@ func (ns NamingStrategy) JoinTableName(str string) string {
 	if ns.SingularTable {
 		return ns.TablePrefix + ns.toDBName(str)
 	}
-	return ns.TablePrefix + inflection.Plural(ns.toDBName(str))
+	return ns.TablePrefix + utils.Plural(ns.toDBName(str))
 }
 
 // RelationshipFKName generate fk name for relation

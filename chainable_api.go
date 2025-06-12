@@ -57,6 +57,22 @@ func (db *DB) Clauses(conds ...clause.Expression) (tx *DB) {
 
 var tableRegexp = regexp.MustCompile(`(?i)(?:.+? AS (\w+)\s*(?:$|,)|^\w+\s+(\w+)$)`)
 
+// extractTableAlias 提取表名表达式中的别名
+// 该函数封装了正则表达式的处理逻辑，用于从SQL表名表达式中提取表的别名
+// 支持两种格式：
+// 1. "table AS alias" 形式
+// 2. "table alias" 形式
+func extractTableAlias(name string) string {
+	if results := tableRegexp.FindStringSubmatch(name); len(results) == 3 {
+		if results[1] != "" {
+			return results[1]
+		} else {
+			return results[2]
+		}
+	}
+	return ""
+}
+
 // Table specify the table you would like to run db operations
 //
 //	// Get a user
@@ -65,12 +81,8 @@ func (db *DB) Table(name string, args ...interface{}) (tx *DB) {
 	tx = db.getInstance()
 	if strings.Contains(name, " ") || strings.Contains(name, "`") || len(args) > 0 {
 		tx.Statement.TableExpr = &clause.Expr{SQL: name, Vars: args}
-		if results := tableRegexp.FindStringSubmatch(name); len(results) == 3 {
-			if results[1] != "" {
-				tx.Statement.Table = results[1]
-			} else {
-				tx.Statement.Table = results[2]
-			}
+		if alias := extractTableAlias(name); alias != "" {
+			tx.Statement.Table = alias
 		}
 	} else if tables := strings.Split(name, "."); len(tables) == 2 {
 		tx.Statement.TableExpr = &clause.Expr{SQL: tx.Statement.Quote(name)}
